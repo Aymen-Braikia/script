@@ -53,7 +53,7 @@ const window2 = window.window2 || {},
 		AutoBook: { enabled: true, draw: false },
 		AutoBuild: { enabled: false, draw: true, key: "KeyT", keyMode: "press", build: "Bridges" },
 		AutoFire: { enabled: false, draw: true, key: "KeyX", keyMode: "hold" },
-		AutoRespawn: { enabled: false, draw: false },
+		AutoRespawn: { enabled: true, draw: false },
 		AutoTotem: { enabled: false, draw: true, key: "KeyJ", keyMode: "press" },
 		AutoSeed: { enabled: false, draw: true, key: "NONE", keyMode: "press", seed: "Berry" },
 		AutoTame: { enabled: false, draw: true, key: "KeyI", keyMode: "press", angle: null },
@@ -115,6 +115,8 @@ const window2 = window.window2 || {},
 		},
 	},
 	vars = {
+		connect3: null,
+		connect2: null,
 		nickname: null,
 		fly: null,
 		src: null,
@@ -179,6 +181,12 @@ function updateFPS(now) {
 	ctx.restore();
 }
 
+function generateToken(len) {
+	let tok = "";
+	for (let i = 0; i < len; i++) tok += chars[Math.floor(Math.random() * chars.length)];
+	return tok;
+}
+
 let user, world, client, mouse, keyboard, UI, game, Item, AC;
 function hooks() {
 	if (!world || !client || !user) requestAnimationFrame(hooks);
@@ -196,9 +204,85 @@ function hooks() {
 		}
 		if (!client && typeof window[p].connect == "function") {
 			client = window[p];
-			client.send_move = (move) => {
-				client[vars.socket].send(toBinary([packets.move, move]));
-			};
+			client.send_move = (move) => client[vars.socket].send(toBinary([packets.move, move]));
+
+			client.connect = new Proxy(client.connect, {
+				apply(target, thisArg, args) {
+					if (args[0] && args[0][0] == "hold") {
+						window[vars.google][vars.googleFunction]().then((tok) => {
+							const data = {
+								googleRecap: tok,
+								socketUrl: client[vars.socket].url.split("?")[0] + "?" + user.ΔⵠⲆⵠᐃⵠⲆ,
+								param1: user.ⵠᐃⵠⲆⵠᐃᐃ,
+								param2: user.ⵠⵠᐃᐃⲆᐃΔ,
+								param3: user.ΔΔⲆⲆΔᐃⲆ,
+								token: user[vars.token],
+								token_id: user[vars.token_id],
+							};
+
+							user.ΔⵠⲆⵠᐃⵠⲆ = undefined;
+							user.ⵠᐃⵠⲆⵠᐃᐃ = undefined;
+							user.ⵠⵠᐃᐃⲆᐃΔ = undefined;
+							user.ΔΔⲆⲆΔᐃⲆ = undefined;
+
+							fetch("http://localhost:8000/hold", {
+								headers: {
+									"Content-Type": "application/json",
+								},
+								method: "post",
+								body: JSON.stringify(data),
+							});
+
+							// const data = {
+							// 	googleRecap: tok,
+							// 	socketUrl: client[vars.socket].url.split("?")[0] + "?" + user.ΔⵠⲆⵠᐃⵠⲆ,
+							// 	param1: user.ⵠᐃⵠⲆⵠᐃᐃ,
+							// 	param2: user.ⵠⵠᐃᐃⲆᐃΔ,
+							// 	param3: user.ΔΔⲆⲆΔᐃⲆ,
+							// 	token: user[vars.token],
+							// 	token: user[vars.token_id],
+							// };
+
+							// window.socket = new WebSocket(data.socketUrl);
+							// socket.binaryType = "arraybuffer";
+							// // socket.onopen = client[vars.socket].onopen;
+							// socket.onopen = (e) => {
+							// 	socket.send(JSON.stringify(["Aymen", 4040, 2360, 52, generateToken(14), generateToken(10), 0, 0, 0, 0, 0, 1, 0, 0, 0, null, user.ΔΔⲆⲆΔᐃⲆ, data.googleRecap, data.param1, data.param2]));
+							// };
+							// let i = 0;
+
+							// socket.onmessage = (e) => {
+							// 	if (typeof e.data == "string") log(e.data.length);
+							// 	else {
+							// 		i++;
+							// 		log(e.data, i);
+							// 	}
+
+							// 	// socket.send(JSON.stringify([0, 5580, 22970]));
+							// };
+							// socket.onclose = (e) => {
+							// 	// console.clear();
+							// 	log("socket closed");
+							// };
+							// socket.onerror = (e) => {
+							// 	// console.clear();
+							// 	log("socket errored: ", e.message);
+							// };
+
+							// user.xd1 = user.ΔⵠⲆⵠᐃⵠⲆ;
+							// user.xd2 = user.ⵠᐃⵠⲆⵠᐃᐃ;
+							// user.xd3 = user.ⵠⵠᐃᐃⲆᐃΔ;
+						});
+					} else Reflect.apply(target, thisArg, args);
+					// return result[0] == 25 ? settings.AutoRespawn.enabled && [] : result;
+				},
+			});
+
+			// used to hook the google verificator
+			const strPart1 = client.constructor.toString().split("onopen")[1].split(".then")[0];
+			const strPart2 = strPart1.slice(strPart1.lastIndexOf(";") + 1).replace("()", "");
+			vars.google = strPart2.split(".")[0];
+			vars.googleFunction = strPart2.split(".")[1];
 
 			const a = client.constructor.toString().replaceAll(" ", "").split(`.id=-1`)[0].slice(-120).split("=[]")[0].split(".");
 
@@ -222,6 +306,9 @@ function hooks() {
 		if (!game && window[p] && typeof window[p].options == "object") {
 			game = window[p];
 			for (const e in game) game[e] && typeof game[e].all == "function" && (vars.safe_delete = e);
+			for (let e in UI) typeof UI[e] == "function" && UI[e].toString().replaceAll(" ", "").includes(".waiting)&&(") && (vars.connect2 = e);
+
+			vars.connect3 = UI[vars.connect2].toString().split(",")[2].split("(")[0].split(".")[1].trim();
 		}
 	}
 }
@@ -924,15 +1011,15 @@ const UtilsUI = {
 						UtilsUI.saveSettings();
 					},
 				},
-				// {
-				// 	type: "checkbox",
-				// 	label: "AutoRespawn",
-				// 	object: settings.AutoRespawn,
-				// 	property: "enabled",
-				// 	onChange() {
-				// 		UtilsUI.saveSettings();
-				// 	},
-				// },
+				{
+					type: "checkbox",
+					label: "AutoRespawn",
+					object: settings.AutoRespawn,
+					property: "enabled",
+					onChange() {
+						UtilsUI.saveSettings();
+					},
+				},
 				{
 					type: "checkbox",
 					label: "AutoCrown",
@@ -1758,8 +1845,12 @@ const UtilsUI = {
 
 			if (settings.AutoCraft.enabled && settings.AutoCraft.last != null) {
 				if (timestamp - settings.nows.autocraft > 30) {
-					if (gauges.food < 30 || gauges.water < 50) eatFood();
-					else {
+					if (gauges.food < 40 || gauges.water < 50 || (100 - gauges.heat >= 95 && settings.AutoIce.enabled)) {
+						checkIce();
+						eatFood();
+						if (gauges.water < 50) client[vars.socket].send(JSON.stringify([packets.equip, 127]));
+						settings.nows.autocraft = timestamp + 100;
+					} else {
 						client[vars.socket].send([JSON.stringify([packets.craft, settings.AutoCraft.last])]);
 						settings.nows.autocraft = timestamp;
 					}
@@ -1767,10 +1858,15 @@ const UtilsUI = {
 			}
 			if (settings.AutoRecycle.enabled && settings.AutoRecycle.last != null) {
 				if (timestamp - settings.nows.autorecycle > 30) {
-					eatFood();
-					if (gauges.water < 50) client[vars.socket].send(JSON.stringify([packets.equip, 127]));
-					client[vars.socket].send(JSON.stringify([packets.recycle, settings.AutoRecycle.last]));
-					settings.nows.autorecycle = timestamp;
+					if (gauges.food < 40 || gauges.water < 50 || (100 - gauges.heat >= 95 && settings.AutoIce.enabled)) {
+						checkIce();
+						eatFood();
+						settings.nows.autorecycle = timestamp + 100;
+						if (gauges.water < 50) client[vars.socket].send(JSON.stringify([packets.equip, 127]));
+					} else {
+						client[vars.socket].send(JSON.stringify([packets.recycle, settings.AutoRecycle.last]));
+						settings.nows.autorecycle = timestamp;
+					}
 				}
 			}
 
@@ -2569,6 +2665,32 @@ function drawChestInfo(chest) {
 	ctx.fillText("x" + chest.info, user[vars.cam].x + chest.x - 32, user[vars.cam].y + chest.y + 20);
 	ctx.restore();
 }
+function drawTotemInfo(totem) {
+	const ctx = document.getElementById("game_canvas").getContext("2d");
+
+	ctx.save();
+	ctx.font = "20px Baloo Paaji";
+	ctx.strokeStyle = "#000";
+	ctx.fillStyle = "#fff";
+	ctx.lineWidth = 7;
+
+	let y = -10;
+
+	ctx.strokeText(totem.info >= 16 ? "L" : "U", user[vars.cam].x + totem.x - 30, user[vars.cam].y + totem.y + y);
+	ctx.fillText(totem.info >= 16 ? "L" : "U", user[vars.cam].x + totem.x - 30, user[vars.cam].y + totem.y + y);
+	y += 25;
+
+	const infoText = totem.info >= 16 ? totem.info % 16 : totem.info;
+
+	ctx.strokeText(world[vars.players][totem[vars.pid]][vars.nickname], user[vars.cam].x + totem.x - 30, user[vars.cam].y + totem.y + y);
+	ctx.fillText(world[vars.players][totem[vars.pid]][vars.nickname], user[vars.cam].x + totem.x - 30, user[vars.cam].y + totem.y + y);
+
+	y += 25;
+	ctx.strokeText(infoText, user[vars.cam].x + totem.x - 30, user[vars.cam].y + totem.y + y);
+	ctx.fillText(infoText, user[vars.cam].x + totem.x - 30, user[vars.cam].y + totem.y + y);
+
+	ctx.restore();
+}
 function drawBoxInfo(box) {
 	const ctx = document.getElementById("game_canvas").getContext("2d");
 
@@ -2732,7 +2854,8 @@ function damage(entity) {
 			if (mobs.includes(entity.type)) {
 				if (!(p.action & STATE.ATTACK) || !can_hit(p, entity)) continue;
 				// if (![322, 208, 192, 64, 32].includes(p.action) || !can_hit(p, entity)) continue;
-				const dmg = getDmgtoMobs(p) || 0;
+				const dmg = getDmg(p) || 0;
+				// const dmg = getDmgtoMobs(p) || 0;
 				gotDmg = true;
 				entity.hp -= dmg > 0 ? dmg : 0;
 			}
@@ -2743,7 +2866,8 @@ function damage(entity) {
 				if (entity.type == ITEMS.CRATE || entity.type == ITEMS.DEAD_BOX) {
 					if (![322, 208, 192, 64, 32].includes(p.action) || !can_hit(p, entity)) continue;
 
-					const dmg = getDmgtoCrates(p) || 0;
+					// const dmg = getDmgtoCrates(p) || 0;
+					const dmg = getDmg(p) || 0;
 					gotDmg = true;
 					entity.hp -= dmg > 0 ? dmg : 0;
 					continue;
@@ -3889,13 +4013,11 @@ function getBestFood() {
 	return null;
 }
 function checkIce() {
-	if (gauges.heat >= 100) client[vars.socket].send(JSON.stringify(INV.ICE));
+	if (100 - gauges.heat >= 95 && settings.AutoIce.enabled) client[vars.socket].send(JSON.stringify([packets.equip, 235]));
 }
-function eatFood(hunger) {
+function eatFood(hunger = gauges.food) {
 	const food = getBestFood();
-	window2.h = hunger;
 	if (hunger < 40 && food) client[vars.socket].send(JSON.stringify([packets.equip, food]));
-	// client[vars.socket].send(JSON.stringify([14, `food: ${hunger}% hp:${x.hp * 2}hp water:${x.water}%`]));
 }
 
 function updateUnits(data, ui8, hard_refresh) {
@@ -3955,19 +4077,13 @@ function kill_player(id) {
 
 	settings.JoinLeaves.leave.push({ id: id, name: world[vars.players][id][vars.nickname] });
 
-	if (settings.JoinLeaves.leave.length > 4) {
-		let i = 0;
-		settings.JoinLeaves.leave = settings.JoinLeaves.leave.filter((e) => i++ > 0);
-	}
+	if (settings.JoinLeaves.leave.length > 4) settings.JoinLeaves.leave.shift();
 	settings.nows.joinleaves = Date.now();
 }
 function new_player([pType, id, nickname, level, skin, accessory, bag, book]) {
 	settings.JoinLeaves.join.push({ id: id, name: nickname, level: level, skin: skin, accessory: accessory });
 
-	if (settings.JoinLeaves.join.length > 4) {
-		let i = 0;
-		settings.JoinLeaves.join = settings.JoinLeaves.join.filter((e) => i++ > 0);
-	}
+	if (settings.JoinLeaves.join.length > 4) settings.JoinLeaves.join.shift();
 	settings.nows.joinleaves = Date.now();
 }
 
@@ -4126,17 +4242,18 @@ function coloredSpikes() {
 }
 
 const packetHandler = (e) => {
-	if ("string" == typeof e.data)
+	if ("string" == typeof e.data) {
 		if (3 === JSON.parse(e.data)[0]) {
 			A = Date.now();
 			B = Date.now();
 			heal = false;
 			user.alive = true;
 		} else if (2 === JSON.parse(e.data)[0]) new_player(JSON.parse(e.data));
+	}
 };
 let heal = false;
 
-const packetHandler2 = (t) => {
+const packetHandler2 = (t, lol) => {
 	if (typeof t == "object") {
 		switch (t[0]) {
 			case 0:
@@ -4178,10 +4295,7 @@ const packetHandler2 = (t) => {
 			case 25:
 				user.alive = false;
 				// if (settings.AutoRespawn.enabled) {
-				// 	setTimeout(() => {
-				// 		log("respawning");
-				// 		client.connect();
-				// 	}, 1000);
+				// 	setTimeout(() => UI[vars.connect3](client.connect), 1000);
 				// 	return false;
 				// }
 
@@ -5567,18 +5681,18 @@ Array.prototype.push = new Proxy(Array.prototype.push, {
 						argumentsList[0][vars.draw] = () => !settings.ChestOnTop.enabled && draw_chest.bind(argumentsList[0])();
 
 						break;
-					// case ITEMS.TOTEM:
-					// 	draw_totem = argumentsList[0][vars.draw];
+					case ITEMS.TOTEM:
+						draw_totem = argumentsList[0][vars.draw];
 
-					// 	argumentsList[0][vars.draw] = () => !settings.TotemOnTop.enabled && draw_totem.bind(argumentsList[0])();
+						argumentsList[0][vars.draw] = () => !settings.TotemOnTop.enabled && draw_totem.bind(argumentsList[0])(261);
 
-					// 	break;
-					// case ITEMS.TREASURE_CHEST:
-					// 	draw_treasure = argumentsList[0][vars.draw];
+						break;
+					case ITEMS.TREASURE_CHEST:
+						draw_treasure = argumentsList[0][vars.draw];
 
-					// 	argumentsList[0][vars.draw] = () => !settings.TreasureOnTop.enabled && draw_treasure.bind(argumentsList[0])();
+						argumentsList[0][vars.draw] = () => !settings.TreasureOnTop.enabled && draw_treasure.bind(argumentsList[0])();
 
-					// 	break;
+						break;
 					case ITEMS.SPIKE:
 						argumentsList[0].ally = isAlly(argumentsList[0]);
 						argumentsList[0].spriteID = argumentsList[0].ally ? 10010 : 10011;
@@ -5779,8 +5893,12 @@ function setUpVars() {
 	if (!vars.chat) vars.chat = Object.keys(user).filter((e) => user[e] && user[e].input == document.querySelector("#chat_input"));
 	if (!vars.team) vars.team = Object.keys(user).filter((e) => Array.isArray(user[e]) && user[e].length == 0);
 	if (!vars.cam) vars.cam = Object.keys(user).filter((e) => user[e] && user[e].rx == 0);
-	if (!vars.token) vars.token = Object.keys(user).filter((e) => user[e] == getCookie("starve_token"));
-	if (!vars.token_id) vars.token_id = Object.keys(user).filter((e) => user[e] == getCookie("starve_token_id"));
+	for (const e in user) {
+		!vars.token && user[e] == getCookie("starve_token") && (vars.token = e);
+		!vars.token_id && user[e] == getCookie("starve_token_id") && (vars.token_id = e);
+	}
+	// if (!vars.token) vars.token = Object.keys(user).filter((e) => user[e] == getCookie("starve_token"));
+	// if (!vars.token_id) vars.token_id = Object.keys(user).filter((e) => user[e] == getCookie("starve_token_id"));
 	if (!vars.auto_feed) for (let e in user) typeof user[e] == "object" && user[e] && typeof user[e].enabled == "boolean" && user[e].translate && Object.keys(user[e]).length > 3 && (vars.auto_feed = e);
 
 	if (!vars.players) vars.players = Object.keys(world).find((e) => Array.isArray(world[e]) && world[e].length == 100);
@@ -5799,9 +5917,9 @@ function setUpVars() {
 			window[decodePacket] = new Proxy(window[decodePacket], {
 				apply(target, thisArg, args) {
 					const result = Reflect.apply(target, thisArg, args);
-					if (packetHandler2(result)) return result;
+					// if (packetHandler2(result, args[0])) return result;
+					if (packetHandler2(new Uint8Array(args[0]))) return result;
 					else return [];
-					// return result[0] == 25 ? settings.AutoRespawn.enabled && [] : result;
 				},
 			});
 		vars.decodePacket = decodePacket;
@@ -5865,6 +5983,13 @@ function setUpVars() {
 							if (settings.BoxOnTop.enabled) draw_box.bind(crate, [360])();
 							if (settings.BoxInfo.enabled) drawBoxInfo(crate);
 						}
+
+						const totems = world[vars.units][ITEMS.TOTEM];
+						if (settings.TotemOnTop.enabled) for (const totem of totems) draw_totem.bind(totem)(261);
+						if (settings.TotemInfo.enabled) for (const totem of totems) drawTotemInfo(totem);
+
+						const treasures = world[vars.units][ITEMS.TOTEM];
+						if (settings.TotemOnTop.enabled) for (const treasure of treasures) draw_treasure.bind(treasure);
 
 						ctx.save();
 						const players = world[vars.units][ITEMS.PLAYERS];
