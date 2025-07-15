@@ -23,6 +23,7 @@ const window2 = window.window2 || {},
 		ChestOnTop: { enabled: true, draw: false },
 		TotemOnTop: { enabled: true, draw: false },
 		// TreasureOnTop: { enabled: true, draw: false },
+		fakeAMB: { enabled: false, draw: false, victim: null },
 		ShowHP: { enabled: true, draw: false },
 		blizard: { enabled: true, draw: false },
 		sandstorm: { enabled: true, draw: false },
@@ -1859,6 +1860,21 @@ const UtilsUI = {
 
 			const me = world[vars.fast_units][user.id * world[vars.custormWorld]];
 			window2.me = me;
+			const victim = world[vars.units][0].find((p) => p[vars.pid] == settings.fakeAMB.victim);
+			if (victim) {
+				window.me = me;
+				window.victim = victim;
+
+				if (victim.x != settings.fakeAMB.x1 || victim.y != settings.fakeAMB.y1 || me.x != settings.fakeAMB.x2 || me.y != settings.fakeAMB.y2) {
+					settings.fakeAMB.x1 = victim.x;
+					settings.fakeAMB.y1 = victim.y;
+					settings.fakeAMB.x2 = me.x;
+					settings.fakeAMB.y2 = me.y;
+
+					victim.angle = calcAngle(victim, me, false);
+					settings.fakeAMB.angle = victim.angle;
+				} else victim.angle = settings.fakeAMB.angle;
+			}
 
 			const timestamp = Date.now();
 			window2.tm = timestamp;
@@ -2086,7 +2102,7 @@ const UtilsUI = {
 						client.send_move(move);
 					}
 				}
-			}
+			} else settings.AutoFarm.angle = null;
 
 			if (settings.AutoTame.enabled) {
 				let min = Infinity;
@@ -2138,7 +2154,7 @@ const UtilsUI = {
 				if (n) {
 					const target = findTarget(me, world[vars.units][0], n);
 					if (target) {
-						settings.AimBot.angle = calcAngle(me, target, true);
+						settings.AimBot.angle = calcAngle(me, target, false);
 						settings.AutoFarm.angle = null;
 						settings.AutoTame.angle = null;
 
@@ -4016,8 +4032,8 @@ function Pathfinde2(me, x, y) {
 	return Pathfind;
 }
 
-function calcAngle(_, $, o) {
-	return _ && $ ? (o ? Math.atan2($.r.y - _.r.y, $.r.x - _.r.x) : Math.atan2($.y - _.y, $.x - _.x)) : null;
+function calcAngle(me, target, o) {
+	return me && target ? (o ? Math.atan2(target.r.y - me.r.y, target.r.x - me.r.x) : Math.atan2(target.y - me.y, target.x - me.x)) : null;
 }
 
 function getBestHammer() {
@@ -4075,6 +4091,8 @@ function updateUnits(data, ui8, hard_refresh) {
 		var pid = ui8[k8];
 		var idk = ui16[k16 + 5];
 		var id = world[vars.custormWorld] * pid + idk;
+
+		var angle = (ui8[k8 + 1] / 255) * Math.PI * 2;
 
 		var action = ui16[k16 + 1];
 
