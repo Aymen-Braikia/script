@@ -23,6 +23,7 @@ const window2 = window.window2 || {},
 		ChestOnTop: { enabled: true, draw: false },
 		TotemOnTop: { enabled: true, draw: false },
 		// TreasureOnTop: { enabled: true, draw: false },
+		ping: { start: Date.now(), draw: false, delay: null },
 		fakeAMB: { enabled: false, draw: false, victim: null },
 		ShowHP: { enabled: true, draw: false },
 		blizard: { enabled: true, draw: false },
@@ -72,7 +73,7 @@ const window2 = window.window2 || {},
 		AutoCraft: { enabled: false, draw: true, key: "KeyK", keyMode: "press", last: null },
 		AutoRecycle: { enabled: false, draw: true, key: "KeyL", keyMode: "press", last: null },
 
-		AimBot: { enabled: false, draw: true, key: "KeyF", keyMode: "press", angle: null, drawAngle: () => {} },
+		AimBot: { enabled: false, chase: true, draw: true, key: "KeyF", keyMode: "press", angle: null, drawAngle: () => {} },
 
 		Spectator: { enabled: false, draw: true, key: "KeyE", keyMode: "press", speed: 0.5 },
 
@@ -114,6 +115,8 @@ const window2 = window.window2 || {},
 			dropsword: Date.now(),
 			updateInv: Date.now(),
 			joinleaves: Date.now(),
+			ping: Date.now(),
+			move: Date.now(),
 		},
 	},
 	vars = {
@@ -177,9 +180,23 @@ function updateFPS(now) {
 	ctx.lineWidth = 6;
 	ctx.fillStyle = "white";
 	ctx.strokeStyle = "black";
-	ctx.font = "35px Baloo Paaji";
+	ctx.font = "30px Baloo Paaji";
 	ctx.strokeText(fps + "FPS", innerWidth - 480, 60);
 	ctx.fillText(fps + "FPS", innerWidth - 480, 60);
+	ctx.restore();
+}
+function drawPing() {
+	const ctx = window.ctx || document.querySelector("canvas").getContext("2d");
+
+	if (!ctx) return;
+	ctx.save();
+	ctx.beginPath();
+	ctx.lineWidth = 6;
+	ctx.fillStyle = "white";
+	ctx.strokeStyle = "black";
+	ctx.font = "30px Baloo Paaji";
+	ctx.strokeText(settings.ping.delay + "ms", innerWidth - 620, 60);
+	ctx.fillText(settings.ping.delay + "ms", innerWidth - 620, 60);
 	ctx.restore();
 }
 
@@ -1096,6 +1113,15 @@ const UtilsUI = {
 				},
 				{
 					type: "checkbox",
+					label: "AimBot Chase",
+					object: settings.AimBot,
+					property: "chase",
+					onChange() {
+						UtilsUI.saveSettings();
+					},
+				},
+				{
+					type: "checkbox",
 					label: "AutoTotem",
 					object: settings.AutoTotem,
 					property: "enabled",
@@ -1809,6 +1835,7 @@ const UtilsUI = {
 			for (const property in settings) event.code === settings[property].key && settings[property].keyMode === "press" && (settings[property].enabled = !settings[property].enabled);
 
 			if (event.code === settings.Spectator.key && !settings.Spectator.enabled) {
+				settings.nows.spectator = Date.now();
 				user[vars.cam][vars.update] = settings.Spectator.original;
 				client[vars.socket].send(JSON.stringify([packets.focus]));
 			}
@@ -1857,7 +1884,10 @@ const UtilsUI = {
 			if (!client[vars.socket].current) {
 				client[vars.socket].current = true;
 				client[vars.socket].addEventListener("message", packetHandler);
+				client[vars.socket].addEventListener("close", () => (user.alive = false));
 			}
+
+			if (!user.alive) return;
 
 			const me = world[vars.fast_units][user.id * world[vars.custormWorld]];
 			window2.me = me;
@@ -1879,6 +1909,11 @@ const UtilsUI = {
 
 			const timestamp = Date.now();
 			window2.tm = timestamp;
+
+			if (timestamp - settings.nows.ping > 2000) {
+				client[vars.socket].send(JSON.stringify([packets.focus]));
+				settings.nows.ping = Date.now();
+			}
 
 			if (settings.AutoTotem.enabled) {
 				if (timestamp - settings.nows.autototem > 80) {
@@ -2141,7 +2176,7 @@ const UtilsUI = {
 				}
 			} else settings.AutoTame.angle = null;
 
-			if (settings.AimBot.enabled && timestamp) {
+			if (settings.AimBot.enabled) {
 				let n = 0;
 				switch (holdingGearType(me)) {
 					case "AXE":
@@ -2160,6 +2195,9 @@ const UtilsUI = {
 				if (n) {
 					const target = findTarget(me, world[vars.units][ITEMS.PLAYERS], n);
 					if (target) {
+						settings.AimBot.target = target;
+						const move = Pathfinde2(me, target.x, target.y, false);
+
 						settings.AimBot.angle = calcAngle(me, target, false);
 						settings.AutoFarm.angle = null;
 						settings.AutoTame.angle = null;
@@ -2169,48 +2207,40 @@ const UtilsUI = {
 						const e = 2 * Math.PI,
 							Angle255 = Math.floor((((settings.AimBot.angle + e) % e) * 255) / e);
 
-						if (settings.nows.aimbot > 300) {
+						if (timestamp - settings.nows.move > 20 && settings.AimBot.chase) {
+							client.send_move(move);
+							settings.nows.move = Date.now();
+						}
+						// if (settings.nows.aimbot > settings.delays.aimbot || 300) {
+						if (timestamp - settings.nows.aimbot > 100) {
 							settings.nows.aimbot = Date.now();
 							client[vars.socket].send(JSON.stringify([packets.attack, Angle255]));
 							client[vars.socket].send(JSON.stringify([packets.stopAttack]));
 						}
-						settings.nows.aimbot = Date.now();
-					} else settings.AimBot.angle = null;
+					} else {
+						settings.AimBot.angle = null;
+						const move = Pathfinde2(me, settings.AimBot.target.x, settings.AimBot.target.y, false);
+						if (timestamp - settings.nows.move > 20 && settings.AimBot.chase) {
+							settings.nows.move = Date.now();
+							client.send_move(move);
+						}
+					}
 				} else settings.AimBot.angle = null;
 			} else settings.AimBot.angle = null;
 
 			if (settings.AutoSteal.enabled) {
 				if (timestamp - settings.nows.autosteal > 50) {
-					const chests = world[vars.units][11];
-					const ovens = world[vars.units][34];
-					const windmills = world[vars.units][32];
-					chests.forEach((chest) => {
+					const chests = world[vars.units][ITEMS.CHEST];
+
+					for (const chest of chests) {
 						if (getdist(chest, me) <= 300) {
 							if (settings.AutoSteal.unlock && !isAlly(chest) && chest.action) {
 								client[vars.socket].send(JSON.stringify([packets.unlock, chest[vars.pid], chest.id]));
 							}
 							client[vars.socket].send(JSON.stringify([packets.chestTake, chest[vars.pid], chest.id]));
 						}
-					});
-					ovens.forEach((oven) => {
-						if (getdist(oven, me) <= 300) {
-							client[vars.socket].send(JSON.stringify([packets.ovenTake, oven[vars.pid], oven.id]));
-						}
-					});
-					windmills.forEach((windmill) => {
-						if (getdist(windmill, me) <= 300) {
-							client[vars.socket].send(JSON.stringify([packets.windmillTake, windmill[vars.pid], windmill.id]));
-						}
-					});
-					const extractorIds = [24, 25, 26, 27, 28];
-					for (let i = 0; i < extractorIds.length; i++) {
-						const extractors = world[vars.units][extractorIds[i]];
-						extractors.forEach((extractor) => {
-							if (getdist(extractor, me) <= 300) {
-								client[vars.socket].send(JSON.stringify([22, extractor[vars.pid], extractor.id, extractor.type]));
-							}
-						});
 					}
+
 					settings.nows.autosteal = timestamp;
 				}
 			}
@@ -4022,18 +4052,18 @@ function Pathfinde(me, Nearest) {
 	return Pathfind;
 }
 
-function Pathfinde2(me, x, y) {
+function Pathfinde2(me, x, y, floor = true) {
 	let Pathfind = 0;
 
-	let x1 = me.x,
-		y1 = me.y,
-		x2 = x,
-		y2 = y;
+	let x1 = Math.floor(me.x),
+		y1 = Math.floor(me.y),
+		x2 = Math.floor(x),
+		y2 = Math.floor(y);
 
-	x1 >= 1e3 && (x1 = Math.floor(me.x / 100));
-	y1 >= 1e3 && (y1 = Math.floor(me.y / 100));
-	x2 >= 1e3 && (x2 = Math.floor(x / 100));
-	y2 >= 1e3 && (y2 = Math.floor(y / 100));
+	floor && x1 >= 1e3 && (x1 = Math.floor(me.x / 100));
+	floor && y1 >= 1e3 && (y1 = Math.floor(me.y / 100));
+	floor && x2 >= 1e3 && (x2 = Math.floor(x / 100));
+	floor && y2 >= 1e3 && (y2 = Math.floor(y / 100));
 
 	if (x1 > x2) Pathfind |= 1;
 	else if (x1 < x2) Pathfind |= 2;
@@ -4328,7 +4358,7 @@ const packetHandler = (e) => {
 };
 let heal = false;
 
-const packetHandler2 = (t, lol) => {
+const packetHandler2 = (t) => {
 	if (typeof t == "object") {
 		switch (t[0]) {
 			case 0:
@@ -4363,9 +4393,12 @@ const packetHandler2 = (t, lol) => {
 				client.ping();
 				break;
 			case 17:
-				var ui16 = new Uint16Array(t);
+				settings.ping.delay = Date.now() - settings.ping.start;
 
-				user[vars.cam][vars.change](ui16[1], ui16[2]);
+				if (Date.now() - settings.nows.spectator < 500) return true;
+
+				if (Date.now() - settings.nows.ping < 2e3) return false;
+
 				break;
 			case 25:
 				user.alive = false;
@@ -5986,7 +6019,9 @@ WebSocket.prototype.send = new Proxy(send, {
 				// 	 me.angle = calcAngle(mouse.pos, { x: user[vars.cam].x + me.x, y: user[vars.cam].y + me.y });
 				// }
 
-				if (settings.Spectator.enabled && packet[0] == packets.recoverFocus) return;
+				if (packet[0] == packets.focus) settings.ping.start = Date.now();
+
+				// if (settings.Spectator.enabled && packet[0] == packets.recoverFocus) return;
 			}
 		} else if (settings.Spectator.enabled && packets.move == args[0][0]) return;
 
@@ -6149,6 +6184,7 @@ function setUpVars() {
 						ctx.globalAlpha = 1;
 					}
 					updateFPS(performance.now());
+					drawPing();
 					if (settings.Timers.enabled) drawTimers();
 
 					const ctx = document.getElementById("game_canvas").getContext("2d");
