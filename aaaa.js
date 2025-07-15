@@ -109,6 +109,7 @@ const window2 = window.window2 || {},
 			autocrown: Date.now(),
 			autospike: Date.now(),
 			autofarm: Date.now(),
+			aimbot: Date.now(),
 			autoemerald: Date.now(),
 			dropsword: Date.now(),
 			updateInv: Date.now(),
@@ -1901,7 +1902,7 @@ const UtilsUI = {
 
 			if (settings.AutoCraft.enabled && settings.AutoCraft.last != null) {
 				if (timestamp - settings.nows.autocraft > 30) {
-					if (gauges.food < 40 || gauges.water < 50 || (100 - gauges.heat >= 95 && settings.AutoIce.enabled)) {
+					if ((gauges.food < 40 && getBestFood()) || (gauges.water < 50 && user[vars.inv][vars.n][127]) || (100 - gauges.heat >= 95 && settings.AutoIce.enabled)) {
 						checkIce();
 						eatFood();
 						if (gauges.water < 50) client[vars.socket].send(JSON.stringify([packets.equip, 127]));
@@ -2046,7 +2047,10 @@ const UtilsUI = {
 						...units[ITEMS.ALOE_VERA_SEED],
 						...units[ITEMS.WATERMELON_SEED],
 					])
-						if (getdist(me, seed) < min && seed.info & 16 && settings.AutoFarm.water && isPointInRange(seed.x, seed.y, settings.AutoFarm.x, settings.AutoFarm.y, settings.AutoFarm.xx, settings.AutoFarm.yy)) closest = seed;
+						if (getdist(me, seed) < min && seed.info & 16 && settings.AutoFarm.water && isPointInRange(seed.x, seed.y, settings.AutoFarm.x, settings.AutoFarm.y, settings.AutoFarm.xx, settings.AutoFarm.yy)) {
+							closest = seed;
+							min = getdist(me, seed);
+						}
 
 					if (!closest)
 						for (const seed of [
@@ -2060,11 +2064,13 @@ const UtilsUI = {
 							...units[ITEMS.ALOE_VERA_SEED],
 							...units[ITEMS.WATERMELON_SEED],
 						])
-							if (getdist(me, seed) < min && (seed.info & 1 || seed.info & 2 || seed.info & 3) && seed.info !== 10 && isPointInRange(seed.x, seed.y, settings.AutoFarm.x, settings.AutoFarm.y, settings.AutoFarm.xx, settings.AutoFarm.yy))
+							if (getdist(me, seed) < min && (seed.info & 1 || seed.info & 2 || seed.info & 3) && seed.info !== 10 && isPointInRange(seed.x, seed.y, settings.AutoFarm.x, settings.AutoFarm.y, settings.AutoFarm.xx, settings.AutoFarm.yy)) {
 								closest = seed;
+								min = getdist(me, seed);
+							}
 
 					if (closest) {
-						settings.AutoFarm.angle = calcAngle(me, closest, true);
+						settings.AutoFarm.angle = calcAngle(me, closest, false);
 
 						user[vars.control][vars.update] = customAngleDrawer;
 
@@ -2087,7 +2093,7 @@ const UtilsUI = {
 							} else client.send_move(Pathfinde(me, closest));
 						}
 						// no seeds need water
-						else if (getdist(me, closest) < 200) {
+						else if (getdist(me, closest) < 250) {
 							// use fork
 							if (user[vars.inv][vars.n][99] && !user[vars.inv][vars.n][100] && me.right !== 99) client[vars.socket].send(JSON.stringify([packets.equip, 99]));
 							if (user[vars.inv][vars.n][100] && me.right !== 100) client[vars.socket].send(JSON.stringify([packets.equip, 100]));
@@ -2135,7 +2141,7 @@ const UtilsUI = {
 				}
 			} else settings.AutoTame.angle = null;
 
-			if (settings.AimBot.enabled) {
+			if (settings.AimBot.enabled && timestamp) {
 				let n = 0;
 				switch (holdingGearType(me)) {
 					case "AXE":
@@ -2152,7 +2158,7 @@ const UtilsUI = {
 						break;
 				}
 				if (n) {
-					const target = findTarget(me, world[vars.units][0], n);
+					const target = findTarget(me, world[vars.units][ITEMS.PLAYERS], n);
 					if (target) {
 						settings.AimBot.angle = calcAngle(me, target, false);
 						settings.AutoFarm.angle = null;
@@ -2163,8 +2169,12 @@ const UtilsUI = {
 						const e = 2 * Math.PI,
 							Angle255 = Math.floor((((settings.AimBot.angle + e) % e) * 255) / e);
 
-						client[vars.socket].send(JSON.stringify([packets.attack, Angle255]));
-						client[vars.socket].send(JSON.stringify([packets.stopAttack]));
+						if (settings.nows.aimbot > 300) {
+							settings.nows.aimbot = Date.now();
+							client[vars.socket].send(JSON.stringify([packets.attack, Angle255]));
+							client[vars.socket].send(JSON.stringify([packets.stopAttack]));
+						}
+						settings.nows.aimbot = Date.now();
 					} else settings.AimBot.angle = null;
 				} else settings.AimBot.angle = null;
 			} else settings.AimBot.angle = null;
@@ -2299,7 +2309,7 @@ const UtilsUI = {
 					}
 				}
 			}
-			if (settings.AutoExtractorTake.enabled) {
+			if (settings.AutoExtractorTake.enabled || settings.AutoSteal.enabled) {
 				if (timestamp - settings.nows.autoextractortake > 100) {
 					const extractorTypes = [
 						ITEMS.EXTRACTOR_MACHINE_STONE,
@@ -2345,7 +2355,7 @@ const UtilsUI = {
 					settings.nows.autoextractorput = timestamp;
 				}
 			}
-			if (settings.AutoBreadTake.enabled) {
+			if (settings.AutoBreadTake.enabled || settings.AutoSteal.enabled) {
 				if (timestamp - settings.nows.autobreadtake > 100) {
 					const ovens = world[vars.units][ITEMS.BREAD_OVEN];
 					const windmills = world[vars.units][ITEMS.WINDMILL];
@@ -2363,7 +2373,7 @@ const UtilsUI = {
 					const windmills = world[vars.units][ITEMS.WINDMILL];
 
 					for (const oven of ovens)
-						if (getdist(oven, me) <= 300 && (oven.info & 0x1f) < 31 && (oven.info & 0x3e0) >> 5 < 31) {
+						if ((getdist(oven, me) <= 300 && (oven.info & 0x1f) < 31) || (oven.info & 0x3e0) >> 5 < 31) {
 							client[vars.socket].send(JSON.stringify([packets.ovenPutWood, 31, oven[vars.pid], oven.id]));
 							client[vars.socket].send(JSON.stringify([packets.ovenPutFlour, 31, oven[vars.pid], oven.id]));
 						}
@@ -2915,10 +2925,11 @@ function damage(entity) {
 			if (mobs.includes(entity.type)) {
 				if (!(p.action & STATE.ATTACK) || !can_hit(p, entity)) continue;
 				// if (![322, 208, 192, 64, 32].includes(p.action) || !can_hit(p, entity)) continue;
-				const dmg = getDmg(p) || 0;
-				// const dmg = getDmgtoMobs(p) || 0;
+				// const dmg = getDmg(p) || 0;
+				const dmg = getDmgtoMobs(p) || 0;
 				gotDmg = true;
 				entity.hp -= dmg > 0 ? dmg : 0;
+				break;
 			}
 
 			if (p.type == ITEMS.PLAYERS) {
@@ -2927,11 +2938,11 @@ function damage(entity) {
 				if (entity.type == ITEMS.CRATE || entity.type == ITEMS.DEAD_BOX) {
 					if (![322, 208, 192, 64, 32].includes(p.action) || !can_hit(p, entity)) continue;
 
-					// const dmg = getDmgtoCrates(p) || 0;
-					const dmg = getDmg(p) || 0;
+					const dmg = getDmgtoCrates(p) || 0;
+					// const dmg = getDmg(p) || 0;
 					gotDmg = true;
 					entity.hp -= dmg > 0 ? dmg : 0;
-					continue;
+					break;
 				}
 
 				const dmg = (getDmg(p) || 0) - (entity.type == ITEMS.PLAYERS ? getArmor(entity, p) : 0);
@@ -3120,6 +3131,7 @@ function getDmg(p) {
 				case 0:
 					return 19; // Stone Sword
 				case 5:
+					log("gold sward bro");
 					return 22; // Gold Sword
 				case 6:
 					return 24; // Diamond Sword
